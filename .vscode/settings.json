@@ -1,0 +1,18 @@
+{
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "cmake.configureOnOpen": true,
+    "cmake.exportCompileCommandsFile": true,
+    "cmake.buildDirectory": "${workspaceFolder}/build-${buildType}",
+    "C_Cpp.intelliSenseEngine": "default",
+    "files.associations": {
+        "*.h": "c",
+        "*.cpp": "cpp",
+        "iostream": "cpp",
+        "ostream": "cpp"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools",
+        "editor.formatOnSave": true
+    },
+    "C_Cpp.errorSquiggles": "enabled"
+}

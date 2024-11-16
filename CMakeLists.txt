@@ -9,9 +9,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Define option for targeting Windows
-option(TARGET_WINDOWS "Build for Windows target" OFF)
-
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -49,28 +46,40 @@ endif()
 # Find SDL2
 find_package(SDL2 CONFIG REQUIRED)
 
-# Define the executable
-add_executable(${PROJECT_NAME}
-    src/main.cpp
-)
+# Define the executable based on platform
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    add_executable(${PROJECT_NAME} WIN32
+        src/main.cpp
+    )
+    
+    # Get SDL2 DLL path for Windows
+    get_target_property(SDL2_DLL_LOCATION SDL2::SDL2 IMPORTED_LOCATION_RELEASE)
+    if(NOT SDL2_DLL_LOCATION)
+        get_target_property(SDL2_DLL_LOCATION SDL2::SDL2 IMPORTED_LOCATION)
+    endif()
+    
+    # Copy SDL2 DLL using file(COPY)
+    file(COPY "$ENV{VCPKG_ROOT}/installed/x64-mingw-dynamic/bin/SDL2.dll"
+         DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+else()
+    add_executable(${PROJECT_NAME}
+        src/main.cpp
+    )
+endif()
 
-# Link SDL2
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE
-    SDL2::SDL2
-    SDL2::SDL2main
-)
-
-# Platform-specific configurations
-if(TARGET_WINDOWS)
-    # Custom command to copy SDL2 DLL without using PowerShell
-    add_custom_command(
-        TARGET ${PROJECT_NAME} 
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${SDL2_DLL_PATH}"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-        COMMENT "Copying SDL2 DLL to output directory"
+# Link SDL2 with platform-specific settings
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+        SDL2::SDL2main
+        SDL2::SDL2
+        -mwindows
+    )
+else()
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+        SDL2::SDL2
+        SDL2::SDL2main
     )
 endif()
 
@@ -80,9 +89,10 @@ target_include_directories(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Optional: Add platform-specific compile definitions
-target_compile_definitions(${PROJECT_NAME}
-    PRIVATE
-    $<$<PLATFORM_ID:Windows>:WINDOWS_BUILD>
-    $<$<PLATFORM_ID:Linux>:LINUX_BUILD>
-)
+# Platform-specific compile definitions
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    target_compile_definitions(${PROJECT_NAME}
+        PRIVATE
+        WINDOWS_BUILD
+    )
+endif()
