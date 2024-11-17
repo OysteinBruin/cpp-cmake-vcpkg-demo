@@ -64,14 +64,7 @@ jobs:
           -DTARGET_WINDOWS=ON \
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
         cmake --build build-windows
-
-    - name: Debug Build Output
-      run: |
-        echo "Listing build-windows directory:"
-        ls -R build-windows/
-        echo "Listing build-windows/bin directory (if exists):"
-        ls -R build-windows/bin/ || echo "bin directory not found"
-
+        
     - name: Prepare Windows Package
       run: |
         mkdir -p deploy/windows
@@ -80,24 +73,33 @@ jobs:
         cp build-windows/bin/*.exe deploy/windows/
         cp build-windows/bin/*.dll deploy/windows/
         
-        # Copy MinGW DLLs - using a different approach to find them
-        MINGW_BIN=/usr/lib/gcc/x86_64-w64-mingw32/*-posix
-        echo "MinGW bin path: $MINGW_BIN"
-        cp $MINGW_BIN/libstdc++-6.dll deploy/windows/
-        cp $MINGW_BIN/libgcc_s_seh-1.dll deploy/windows/
+        # Copy SDL2 dependencies from vcpkg
+        cp $VCPKG_ROOT/installed/x64-mingw-dynamic/bin/SDL2.dll deploy/windows/
         
-        # Alternative path for pthread
-        cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll deploy/windows/
+        # Copy MinGW runtime DLLs
+        cp /usr/lib/gcc/x86_64-w64-mingw32/*/libstdc++-6.dll deploy/windows/ || true
+        cp /usr/lib/gcc/x86_64-w64-mingw32/*/libgcc_s_seh-1.dll deploy/windows/ || true
+        cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll deploy/windows/ || true
         
-        # List what we copied
+        # Create a more detailed test batch file
+        echo "@echo off" > deploy/windows/run_test.bat
+        echo "echo Starting application..." >> deploy/windows/run_test.bat
+        echo "echo Current directory:" >> deploy/windows/run_test.bat
+        echo "cd" >> deploy/windows/run_test.bat
+        echo "echo Files in directory:" >> deploy/windows/run_test.bat
+        echo "dir" >> deploy/windows/run_test.bat
+        echo "echo." >> deploy/windows/run_test.bat
+        echo "echo Running application..." >> deploy/windows/run_test.bat
+        echo "cross_platform_example.exe" >> deploy/windows/run_test.bat
+        echo "if errorlevel 1 (" >> deploy/windows/run_test.bat
+        echo "  echo Application failed with error code %errorlevel%" >> deploy/windows/run_test.bat
+        echo "  pause" >> deploy/windows/run_test.bat
+        echo ")" >> deploy/windows/run_test.bat
+        echo "pause" >> deploy/windows/run_test.bat
+        
+        # List all files
         echo "Final package contents:"
         ls -l deploy/windows/
-        
-        # Create test batch file
-        echo "@echo off" > deploy/windows/test.bat
-        echo "echo Testing SDL2 Application" >> deploy/windows/test.bat
-        echo "cross_platform_example.exe" >> deploy/windows/test.bat
-        echo "pause" >> deploy/windows/test.bat
         
         cd deploy/windows
         zip -r ../windows-build.zip *
