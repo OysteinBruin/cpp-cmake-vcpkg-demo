@@ -65,26 +65,53 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
         cmake --build build-windows
 
+    - name: Debug Build Output
+      run: |
+        echo "Listing build-windows directory:"
+        ls -R build-windows/
+        echo "Listing build-windows/bin directory (if exists):"
+        ls -R build-windows/bin/ || echo "bin directory not found"
+
     - name: Prepare Windows Package
       run: |
+        # Create deployment directory
         mkdir -p deploy/windows
-        cp build-windows/bin/*.exe deploy/windows/
-        cp build-windows/bin/*.dll deploy/windows/
         
-        # Find and copy MinGW runtime DLLs
+        # Check if files exist before copying
+        if [ -d "build-windows/bin" ] && [ "$(ls -A build-windows/bin/)" ]; then
+          echo "Copying build files..."
+          cp build-windows/bin/*.exe deploy/windows/ || echo "No .exe files found"
+          cp build-windows/bin/*.dll deploy/windows/ || echo "No .dll files found"
+        else
+          echo "Error: build-windows/bin directory is empty or doesn't exist"
+          exit 1
+        fi
+        
+        # Find MinGW DLLs
         MINGW_PATH=$(dirname $(which x86_64-w64-mingw32-g++))/../x86_64-w64-mingw32
-        cp $(find $MINGW_PATH -name "libstdc++-6.dll" | head -n 1) deploy/windows/
-        cp $(find $MINGW_PATH -name "libgcc_s_seh-1.dll" | head -n 1) deploy/windows/
-        cp $(find $MINGW_PATH -name "libwinpthread-1.dll" | head -n 1) deploy/windows/
+        echo "MinGW Path: $MINGW_PATH"
+        ls -R $MINGW_PATH/lib/
+        
+        # Copy MinGW DLLs with verbose output
+        echo "Copying MinGW DLLs..."
+        find $MINGW_PATH -name "libstdc++-6.dll" -exec cp {} deploy/windows/ \; -print || echo "libstdc++-6.dll not found"
+        find $MINGW_PATH -name "libgcc_s_seh-1.dll" -exec cp {} deploy/windows/ \; -print || echo "libgcc_s_seh-1.dll not found"
+        find $MINGW_PATH -name "libwinpthread-1.dll" -exec cp {} deploy/windows/ \; -print || echo "libwinpthread-1.dll not found"
         
         # Create test batch file
+        echo "Creating test batch file..."
         echo "@echo off" > deploy/windows/test.bat
         echo "echo Testing SDL2 Application" >> deploy/windows/test.bat
         echo "cross_platform_example.exe" >> deploy/windows/test.bat
         echo "pause" >> deploy/windows/test.bat
         
+        # Check final package contents
+        echo "Final package contents:"
+        ls -R deploy/windows/
+        
+        # Create ZIP file
         cd deploy/windows
-        zip -r ../windows-build.zip *
+        zip -r ../windows-build.zip * || echo "ZIP creation failed"
 
     - name: Upload Windows Artifacts
       uses: actions/upload-artifact@v3
@@ -95,7 +122,6 @@ jobs:
   release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
-    # Modified condition to run on both push to main and tags
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     
     steps:
@@ -111,7 +137,6 @@ jobs:
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
-      # Create a release only for tags
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
@@ -122,7 +147,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Add a step to create artifacts even when not creating a release
     - name: Archive builds
       if: github.ref == 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
       uses: actions/upload-artifact@v3
